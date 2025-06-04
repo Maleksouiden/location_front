@@ -181,9 +181,12 @@ La base de données SQLite contient déjà des données de test avec :
 ### Rendez-vous & Créneaux
 - `GET /api/creneaux` - Mes créneaux (vendeur)
 - `GET /api/creneaux/bien/:bienId` - Créneaux disponibles pour un bien
+- `GET /api/creneaux/demandes` - Demandes de RDV reçues (vendeur)
+- `GET /api/creneaux/mes-rdv` - Mes rendez-vous (acheteur)
 - `POST /api/creneaux` - Créer un créneau (vendeur)
 - `PUT /api/creneaux/:id` - Modifier un créneau (vendeur)
-- `POST /api/rdv` - Demander un RDV (acheteur)
+- `DELETE /api/creneaux/:id` - Supprimer un créneau (vendeur)
+- `POST /api/rdv/demander` - Demander un RDV (acheteur)
 - `PUT /api/rdv/:id/accepter` - Accepter un RDV (vendeur)
 - `PUT /api/rdv/:id/refuser` - Refuser un RDV (vendeur)
 - `PUT /api/rdv/:id/annuler` - Annuler un RDV

@@ -67,6 +67,84 @@ router.get('/', authenticateToken, requireVendeur, async (req, res) => {
   }
 });
 
+// GET /api/creneaux/demandes - Demandes de RDV pour le vendeur connecté
+router.get('/demandes', authenticateToken, requireVendeur, async (req, res) => {
+  try {
+    const demandes = await query(`
+      SELECT
+        c.id,
+        c.date_debut,
+        c.date_fin,
+        c.statut,
+        c.date_creation,
+        b.id as bien_id,
+        b.titre as bien_titre,
+        b.ville as bien_ville,
+        b.adresse_complete as bien_adresse,
+        u.id as acheteur_id,
+        u.nom as acheteur_nom,
+        u.prenom as acheteur_prenom,
+        u.email as acheteur_email,
+        u.telephone as acheteur_telephone
+      FROM creneaux c
+      JOIN biens b ON c.bien_id = b.id
+      JOIN utilisateurs u ON c.acheteur_id = u.id
+      WHERE c.vendeur_id = ? AND c.statut IN ('en_attente', 'confirme')
+      ORDER BY c.date_debut ASC
+    `, [req.user.id]);
+
+    res.json({
+      demandes: demandes
+    });
+
+  } catch (error) {
+    console.error('Erreur récupération demandes RDV:', error);
+    res.status(500).json({
+      error: 'Erreur serveur',
+      message: 'Erreur lors de la récupération des demandes de RDV'
+    });
+  }
+});
+
+// GET /api/creneaux/mes-rdv - RDV de l'acheteur connecté
+router.get('/mes-rdv', authenticateToken, requireAcheteur, async (req, res) => {
+  try {
+    const rdv = await query(`
+      SELECT
+        c.id,
+        c.date_debut,
+        c.date_fin,
+        c.statut,
+        c.date_creation,
+        b.id as bien_id,
+        b.titre as bien_titre,
+        b.ville as bien_ville,
+        b.adresse_complete as bien_adresse,
+        b.prix as bien_prix,
+        u.nom as vendeur_nom,
+        u.prenom as vendeur_prenom,
+        u.email as vendeur_email,
+        u.telephone as vendeur_telephone
+      FROM creneaux c
+      JOIN biens b ON c.bien_id = b.id
+      JOIN utilisateurs u ON c.vendeur_id = u.id
+      WHERE c.acheteur_id = ? AND c.statut IN ('en_attente', 'confirme')
+      ORDER BY c.date_debut ASC
+    `, [req.user.id]);
+
+    res.json({
+      rdv: rdv
+    });
+
+  } catch (error) {
+    console.error('Erreur récupération RDV acheteur:', error);
+    res.status(500).json({
+      error: 'Erreur serveur',
+      message: 'Erreur lors de la récupération des RDV'
+    });
+  }
+});
+
 // GET /api/creneaux/bien/:bienId - Créneaux disponibles pour un bien
 router.get('/bien/:bienId', async (req, res) => {
   try {
@@ -278,8 +356,8 @@ router.put('/:id', authenticateToken, requireVendeur, async (req, res) => {
   }
 });
 
-// POST /api/rdv - Demander un rendez-vous (acheteur)
-router.post('/', authenticateToken, requireAcheteur, async (req, res) => {
+// POST /api/rdv/demander - Demander un rendez-vous (acheteur)
+router.post('/demander', authenticateToken, requireAcheteur, async (req, res) => {
   try {
     const { creneau_id } = req.body;
 

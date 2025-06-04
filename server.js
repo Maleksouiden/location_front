@@ -15,7 +15,7 @@ const suggestionRoutes = require('./routes/suggestions');
 const adminRoutes = require('./routes/admin');
 
 // Import de la configuration de base de données
-const { testConnection } = require('./config/database-sqlite');
+const { db, query, testConnection } = require('./config/database-sqlite');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -43,8 +43,14 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Servir les fichiers statiques (uploads)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Middleware pour les fichiers statiques avec CORS
+app.use('/uploads', (req, res, next) => {
+  res.header('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
 
 // Routes API
 app.use('/api/auth', authRoutes);
@@ -72,6 +78,44 @@ app.get('/api/health', async (req, res) => {
       status: 'ERROR',
       message: error.message
     });
+  }
+});
+
+// Route temporaire pour mettre à jour les images de test
+app.post('/api/update-test-images', (req, res) => {
+  try {
+    const updates = [
+      { id: 32, photo: '/uploads/maison1_main.jpg' },
+      { id: 33, photo: '/uploads/appart1_main.jpg' },
+      { id: 34, photo: '/uploads/appart2_main.jpg' },
+      { id: 35, photo: '/uploads/villa1_main.jpg' },
+      { id: 8, photo: '/uploads/maison2_main.jpg' },
+      { id: 7, photo: '/uploads/terrain1_main.jpg' },
+      { id: 6, photo: '/uploads/bureau1_main.jpg' },
+      { id: 5, photo: '/uploads/appart3_main.jpg' }
+    ];
+
+    const updateStmt = db.prepare('UPDATE biens SET photo_principale = ? WHERE id = ?');
+    let updated = 0;
+
+    updates.forEach(({ id, photo }) => {
+      const result = updateStmt.run(photo, id);
+      if (result.changes > 0) {
+        updated++;
+        console.log(`✅ Bien ${id} mis à jour avec ${photo}`);
+      }
+    });
+
+    // Vérifier les résultats
+    const biensAvecImages = db.prepare('SELECT id, titre, photo_principale FROM biens WHERE photo_principale IS NOT NULL').all();
+
+    res.json({
+      message: `${updated} biens mis à jour avec des images`,
+      biensAvecImages: biensAvecImages
+    });
+  } catch (error) {
+    console.error('Erreur mise à jour images:', error);
+    res.status(500).json({ error: 'Erreur lors de la mise à jour des images' });
   }
 });
 
