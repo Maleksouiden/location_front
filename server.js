@@ -19,17 +19,18 @@ const adminRoutes = require('./routes/admin');
 const { db, query, testConnection } = require('./config/database-sqlite');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.BACKEND_PORT || process.env.PORT || 3000;
 
 // Middleware de sécurité
 app.use(helmet());
 
 // Configuration CORS
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:3001'],
+  origin: ['http://localhost:3000', 'http://localhost:3001', 'http://127.0.0.1:3000', 'http://127.0.0.1:3001'],
   credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+  optionsSuccessStatus: 200 // Pour supporter les anciens navigateurs
 }));
 
 // Rate limiting
@@ -39,6 +40,15 @@ const limiter = rateLimit({
   message: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.'
 });
 app.use('/api/', limiter);
+
+// Middleware pour gérer les requêtes OPTIONS (preflight)
+app.options('*', (req, res) => {
+  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS, PATCH');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.sendStatus(200);
+});
 
 // Middleware pour parser JSON
 app.use(express.json({ limit: '10mb' }));
