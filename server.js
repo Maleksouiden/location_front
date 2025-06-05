@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const bienRoutes = require('./routes/biens');
 const conversationRoutes = require('./routes/conversations');
+const appointmentRoutes = require('./routes/appointments');
 const creneauRoutes = require('./routes/creneaux');
 const suggestionRoutes = require('./routes/suggestions');
 const adminRoutes = require('./routes/admin');
@@ -57,6 +58,57 @@ app.use('/api/auth', authRoutes);
 app.use('/api/utilisateurs', userRoutes);
 app.use('/api/biens', bienRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/appointments', appointmentRoutes);
+
+// Proxy pour Nominatim (éviter les problèmes CORS)
+app.get('/api/geocode/reverse', async (req, res) => {
+  try {
+    const { lat, lon } = req.query;
+    const axios = require('axios');
+
+    const response = await axios.get('https://nominatim.openstreetmap.org/reverse', {
+      params: {
+        format: 'json',
+        lat: lat,
+        lon: lon,
+        addressdetails: 1
+      },
+      headers: {
+        'User-Agent': 'Karya.tn/1.0'
+      }
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erreur geocoding:', error);
+    res.status(500).json({ error: 'Erreur lors du géocodage' });
+  }
+});
+
+app.get('/api/geocode/search', async (req, res) => {
+  try {
+    const { q } = req.query;
+    const axios = require('axios');
+
+    const response = await axios.get('https://nominatim.openstreetmap.org/search', {
+      params: {
+        format: 'json',
+        q: q,
+        countrycodes: 'tn',
+        limit: 5,
+        addressdetails: 1
+      },
+      headers: {
+        'User-Agent': 'Karya.tn/1.0'
+      }
+    });
+
+    res.json(response.data);
+  } catch (error) {
+    console.error('Erreur search geocoding:', error);
+    res.status(500).json({ error: 'Erreur lors de la recherche d\'adresses' });
+  }
+});
 app.use('/api/creneaux', creneauRoutes);
 app.use('/api/rdv', creneauRoutes); // Alias pour les rendez-vous
 app.use('/api/preferences', suggestionRoutes);

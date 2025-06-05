@@ -2,8 +2,48 @@ const express = require('express');
 const { body, query: expressQuery, validationResult } = require('express-validator');
 const { query } = require('../config/database-sqlite');
 const { authenticateToken, requireVendeur, requireOwnership } = require('../middleware/auth');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
 
 const router = express.Router();
+
+// Le middleware requireVendeur est importé depuis ../middleware/auth
+
+// Le middleware requireOwnership est importé depuis ../middleware/auth
+
+// Configuration multer pour l'upload d'images
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const uploadDir = 'uploads/properties';
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'property-' + uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB
+  },
+  fileFilter: function (req, file, cb) {
+    const allowedTypes = /jpeg|jpg|png|webp/;
+    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+    const mimetype = allowedTypes.test(file.mimetype);
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    } else {
+      cb(new Error('Seules les images JPEG, PNG et WebP sont autorisées'));
+    }
+  }
+});
 
 // Validation pour la création/modification d'un bien
 const bienValidation = [
@@ -34,6 +74,15 @@ router.get('/mes-biens', authenticateToken, requireVendeur, async (req, res) => 
       WHERE b.proprietaire_id = ?
       ORDER BY b.date_publication DESC
     `, [req.user.id]);
+
+    // Récupérer toutes les images pour chaque bien
+    for (let bien of biens) {
+      const photos = await query(
+        'SELECT url_image FROM photos_biens WHERE bien_id = ? ORDER BY est_principale DESC, id ASC',
+        [bien.id]
+      );
+      bien.images = photos.map(photo => photo.url_image);
+    }
 
     res.json({
       biens: biens
@@ -130,6 +179,15 @@ router.get('/', async (req, res) => {
 
     const biens = await query(mainQuery, [...queryParams, parseInt(limit), offset]);
 
+    // Récupérer toutes les images pour chaque bien
+    for (let bien of biens) {
+      const photos = await query(
+        'SELECT url_image FROM photos_biens WHERE bien_id = ? ORDER BY est_principale DESC, id ASC',
+        [bien.id]
+      );
+      bien.images = photos.map(photo => photo.url_image);
+    }
+
     res.json({
       biens: biens,
       total: total,
@@ -200,6 +258,9 @@ router.get('/:id', async (req, res) => {
       'SELECT id, url_image, est_principale FROM photos_biens WHERE bien_id = ? ORDER BY est_principale DESC, id ASC',
       [parsedId]
     );
+
+    // Ajouter les images au bien
+    bien.images = photos.map(photo => photo.url_image);
 
     res.json({
       bien: bien,
@@ -350,6 +411,120 @@ router.delete('/:id',
       res.status(500).json({
         error: 'Erreur serveur',
         message: 'Erreur lors de la suppression du bien'
+      });
+    }
+  }
+);
+
+// POST /api/biens/:id/images - Upload d'images pour un bien
+router.post('/:id/images',
+  authenticateToken,
+  requireOwnership('id', 'proprietaire_id', 'biens'),
+  upload.single('image'),
+  async (req, res) => {
+    try {
+      const bienId = req.params.id;
+
+      if (!req.file) {
+        return res.status(400).json({
+          error: 'Aucun fichier',
+          message: 'Aucune image n\'a été fournie'
+        });
+      }
+
+      // Insérer l'image en base
+      const result = await query(
+        'INSERT INTO photos_biens (bien_id, url_image, est_principale) VALUES (?, ?, ?)',
+        [bienId, req.file.path, false]
+      );
+
+      // Si c'est la première image, la marquer comme principale
+      const existingPhotos = await query(
+        'SELECT COUNT(*) as count FROM photos_biens WHERE bien_id = ?',
+        [bienId]
+      );
+
+      if (existingPhotos[0].count === 1) {
+        await query(
+          'UPDATE photos_biens SET est_principale = 1 WHERE id = ?',
+          [result.insertId]
+        );
+      }
+
+      res.status(201).json({
+        message: 'Image uploadée avec succès',
+        image: {
+          id: result.insertId,
+          url: req.file.path,
+          est_principale: existingPhotos[0].count === 1
+        }
+      });
+
+    } catch (error) {
+      console.error('Erreur upload image:', error);
+      res.status(500).json({
+        error: 'Erreur serveur',
+        message: 'Erreur lors de l\'upload de l\'image'
+      });
+    }
+  }
+);
+
+// DELETE /api/biens/:id/images/:imageId - Supprimer une image
+router.delete('/:id/images/:imageId',
+  authenticateToken,
+  requireOwnership('id', 'proprietaire_id', 'biens'),
+  async (req, res) => {
+    try {
+      const { id: bienId, imageId } = req.params;
+
+      // Récupérer l'image
+      const images = await query(
+        'SELECT * FROM photos_biens WHERE id = ? AND bien_id = ?',
+        [imageId, bienId]
+      );
+
+      if (images.length === 0) {
+        return res.status(404).json({
+          error: 'Image non trouvée',
+          message: 'L\'image demandée n\'existe pas'
+        });
+      }
+
+      const image = images[0];
+
+      // Supprimer le fichier physique
+      if (fs.existsSync(image.url_image)) {
+        fs.unlinkSync(image.url_image);
+      }
+
+      // Supprimer de la base
+      await query('DELETE FROM photos_biens WHERE id = ?', [imageId]);
+
+      // Si c'était l'image principale, marquer une autre comme principale
+      if (image.est_principale) {
+        const otherImages = await query(
+          'SELECT id FROM photos_biens WHERE bien_id = ? LIMIT 1',
+          [bienId]
+        );
+
+        if (otherImages.length > 0) {
+          await query(
+            'UPDATE photos_biens SET est_principale = 1 WHERE id = ?',
+            [otherImages[0].id]
+          );
+        }
+      }
+
+      res.json({
+        message: 'Image supprimée avec succès'
+      });
+
+    } catch (error) {
+      console.error('Erreur suppression image:', error);
+      res.status(500).json({
+        error: 'Erreur serveur',
+        message: 'Erreur lors de la suppression de l\'image'
       });
     }
   }

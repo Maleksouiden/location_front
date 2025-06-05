@@ -90,6 +90,42 @@ function closeDatabase() {
   });
 }
 
+// Initialisation des tables
+async function initializeTables() {
+  try {
+    // Créer la table des rendez-vous si elle n'existe pas
+    await query(`
+      CREATE TABLE IF NOT EXISTS appointments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        bien_id INTEGER NOT NULL,
+        demandeur_id INTEGER NOT NULL,
+        date_rdv DATE NOT NULL,
+        heure_rdv TIME NOT NULL,
+        message TEXT,
+        statut VARCHAR(20) DEFAULT 'en_attente' CHECK (statut IN ('en_attente', 'accepte', 'refuse', 'annule')),
+        message_reponse TEXT,
+        date_creation DATETIME DEFAULT CURRENT_TIMESTAMP,
+        date_reponse DATETIME,
+        FOREIGN KEY (bien_id) REFERENCES biens(id) ON DELETE CASCADE,
+        FOREIGN KEY (demandeur_id) REFERENCES utilisateurs(id) ON DELETE CASCADE
+      )
+    `);
+
+    // Créer les index pour les rendez-vous
+    await query(`CREATE INDEX IF NOT EXISTS idx_appointments_bien_id ON appointments(bien_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_appointments_demandeur_id ON appointments(demandeur_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_appointments_statut ON appointments(statut)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_appointments_date_rdv ON appointments(date_rdv)`);
+
+    console.log('✅ Tables des rendez-vous initialisées');
+  } catch (error) {
+    console.error('❌ Erreur initialisation tables:', error);
+  }
+}
+
+// Initialiser les tables au démarrage
+initializeTables();
+
 module.exports = {
   db,
   query,
