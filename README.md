@@ -350,6 +350,37 @@ Le serveur est prêt pour la production et peut être connecté à un frontend R
 - Email: maleksouiden689@gmail.com
 - GitHub: [@Maleksouiden](https://github.com/Maleksouiden)
 
+## 🔧 Corrections Récentes Appliquées
+
+### Problèmes Résolus
+- ✅ **Extraction de ville améliorée** : Détecte correctement "Ariana" au lieu de "شارع معاوية إبن أبي سفيان"
+- ✅ **Sélection de rôle corrigée** : Plus de valeurs null, fonctionnement correct vendeur/acheteur
+- ✅ **CORS Nominatim résolu** : Proxies backend pour éviter les blocages géocodage
+- ✅ **Images CORS configurées** : Toutes les images s'affichent correctement
+- ✅ **Chat amélioré** : Noms d'expéditeurs et liens vers propriétés dans les messages
+- ✅ **Erreurs TypeScript corrigées** : Compilation frontend sans erreurs
+
+### Nouvelles Fonctionnalités Chat
+- 💬 **Nom de l'expéditeur** affiché sur chaque message
+- 🔗 **Lien vers la propriété** cliquable dans l'en-tête du chat
+- 🎯 **Navigation intégrée** vers les détails de propriété
+- ✨ **Interface améliorée** avec meilleure UX
+
+## 🧪 Test Rapide
+
+```bash
+# Démarrage simple
+./start-karya.sh
+
+# Puis tester :
+# 1. Créer vendeur + acheteur
+# 2. Ajouter propriété avec carte
+# 3. Contacter vendeur
+# 4. Vérifier chat avec noms et liens
+# 5. Demander rendez-vous
+```
+
 ---
 
-**Karya.tn** - Votre partenaire immobilier en Tunisie 🇹🇳
+**🎯 Karya.tn - Plateforme immobilière complète et moderne pour la Tunisie 🇹🇳**
+**Développé avec ❤️ par Malek Souiden avec l'assistance d'Augment Agent**
