@@ -211,6 +211,73 @@ router.post('/verify', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /api/auth/change-password - Changer le mot de passe
+router.put('/change-password', authenticateToken, async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+
+    // Validation
+    if (!current_password || !new_password) {
+      return res.status(400).json({
+        error: 'Données manquantes',
+        message: 'Le mot de passe actuel et le nouveau mot de passe sont requis'
+      });
+    }
+
+    if (new_password.length < 6) {
+      return res.status(400).json({
+        error: 'Mot de passe invalide',
+        message: 'Le nouveau mot de passe doit contenir au moins 6 caractères'
+      });
+    }
+
+    // Récupérer l'utilisateur avec son mot de passe
+    const users = await query(
+      'SELECT id, mot_de_passe_hash FROM utilisateurs WHERE id = ?',
+      [req.user.id]
+    );
+
+    if (users.length === 0) {
+      return res.status(404).json({
+        error: 'Utilisateur non trouvé',
+        message: 'Utilisateur non trouvé'
+      });
+    }
+
+    const user = users[0];
+
+    // Vérifier le mot de passe actuel
+    const isCurrentPasswordValid = await bcrypt.compare(current_password, user.mot_de_passe_hash);
+    if (!isCurrentPasswordValid) {
+      return res.status(401).json({
+        error: 'Mot de passe incorrect',
+        message: 'Le mot de passe actuel est incorrect'
+      });
+    }
+
+    // Hasher le nouveau mot de passe
+    const saltRounds = 12;
+    const hashedNewPassword = await bcrypt.hash(new_password, saltRounds);
+
+    // Mettre à jour le mot de passe
+    await query(
+      'UPDATE utilisateurs SET mot_de_passe_hash = ? WHERE id = ?',
+      [hashedNewPassword, req.user.id]
+    );
+
+    res.json({
+      message: 'Mot de passe modifié avec succès'
+    });
+
+  } catch (error) {
+    console.error('Erreur changement mot de passe:', error);
+    res.status(500).json({
+      error: 'Erreur serveur',
+      message: 'Erreur lors du changement de mot de passe'
+    });
+  }
+});
+
 // POST /api/auth/logout - Déconnexion (côté client principalement)
 router.post('/logout', (req, res) => {
   res.json({
